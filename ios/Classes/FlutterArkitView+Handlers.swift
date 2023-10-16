@@ -3,13 +3,17 @@ import ARKit
 extension FlutterArkitView {
     func onAddNode(_ arguments: Dictionary<String, Any>) {
         let geometryArguments = arguments["geometry"] as? Dictionary<String, Any>
-        let geometry = createGeometry(geometryArguments, withDevice: sceneView.device)
-        let node = createNode(geometry, fromDict: arguments, forDevice: sceneView.device)
-        if let parentNodeName = arguments["parentNodeName"] as? String {
-            let parentNode = sceneView.scene.rootNode.childNode(withName: parentNodeName, recursively: true)
-            parentNode?.addChildNode(node)
-        } else {
-            sceneView.scene.rootNode.addChildNode(node)
+        let geometry = createGeometry(geometryArguments, withDevice: sceneView.device);
+        Task {
+            let node: SCNNode? = await createNode(geometry, fromDict: arguments, forDevice: sceneView.device);
+            if(node != nil) {
+                if let parentNodeName = arguments["parentNodeName"] as? String {
+                    let parentNode = await sceneView.scene.rootNode.childNode(withName: parentNodeName, recursively: true);
+                    await parentNode?.addChildNode(node!);
+                } else {
+                    await sceneView.scene.rootNode.addChildNode(node!);
+                }
+            }
         }
     }
   
@@ -51,17 +55,26 @@ extension FlutterArkitView {
         }
     }
     
-    func onGetNodeBoundingBox(_ arguments: Dictionary<String, Any>, _ result:FlutterResult) {
+    func onGetNodeBoundingBox(_ arguments: Dictionary<String, Any>, _ result: @escaping FlutterResult) {
         guard let geometryArguments = arguments["geometry"] as? Dictionary<String, Any> else {
             logPluginError("geometryArguments deserialization failed", toChannel: channel)
             result(nil)
             return
         }
-        let geometry = createGeometry(geometryArguments, withDevice: sceneView.device)
-        let node = createNode(geometry, fromDict: arguments, forDevice: sceneView.device)
+        let geometry = createGeometry(geometryArguments, withDevice: sceneView.device);
         
-        let resArray = [serializeVector(node.boundingBox.min), serializeVector(node.boundingBox.max)]
-        result(resArray)
+        Task {
+            let node: SCNNode? = await createNode(geometry, fromDict: arguments, forDevice: sceneView.device);
+            
+            if(node != nil) {
+                let resArray = [serializeVector(node!.boundingBox.min), serializeVector(node!.boundingBox.max)];
+                result(resArray);
+            }
+            else {
+                result(nil);
+            }
+            
+        }
     }
     
     func onTransformChanged(_ arguments: Dictionary<String, Any>) {

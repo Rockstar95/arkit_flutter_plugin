@@ -1,15 +1,17 @@
 import ARKit
 
-func createNode(_ geometry: SCNGeometry?, fromDict dict: Dictionary<String, Any>, forDevice device: MTLDevice?) -> SCNNode {
+func createNode(_ geometry: SCNGeometry?, fromDict dict: Dictionary<String, Any>, forDevice device: MTLDevice?) async -> SCNNode? {
     let dartType = dict["dartType"] as! String
     
-    let node = dartType == "ARKitReferenceNode"
+    let node: SCNNode? = await dartType == "ARKitReferenceNode"
         ? createReferenceNode(dict)
-        : SCNNode(geometry: geometry)
+        : SCNNode(geometry: geometry);
   
-    updateNode(node, fromDict: dict, forDevice: device)
+    if(node != nil) {
+        updateNode(node!, fromDict: dict, forDevice: device);
+    }
     
-    return node
+    return node;
 }
 
 func updateNode(_ node: SCNNode, fromDict dict: Dictionary<String, Any>, forDevice device: MTLDevice?) {
@@ -38,17 +40,147 @@ func updateNode(_ node: SCNNode, fromDict dict: Dictionary<String, Any>, forDevi
     }
 }
 
-fileprivate func createReferenceNode(_ dict: Dictionary<String, Any>) -> SCNReferenceNode {
-    let url = dict["url"] as! String
-    var referenceUrl: URL
-    if let bundleURL = Bundle.main.url(forResource: url, withExtension: nil){
-        referenceUrl = bundleURL
-    }else{
-        referenceUrl = URL(fileURLWithPath: url)
+fileprivate func createReferenceNode(_ dict: Dictionary<String, Any>) async -> SCNNode? {
+    let remoteUrl: String? = dict["remoteUrl"] as! String?;
+    let url: String? = dict["url"] as! String?;
+    
+    print("remoteUrl:", remoteUrl as Any);
+    print("url:", url as Any);
+    
+    var node: SCNNode?;
+    var referenceUrl: URL;
+    
+    if(remoteUrl != nil && !remoteUrl!.isEmpty) {
+        node = await getUSDZNodeFromURL(urlString: remoteUrl!);
     }
-    let node = SCNReferenceNode(url: referenceUrl)
-    node?.load()
-    return node!
+    else if let bundleURL = Bundle.main.url(forResource: url, withExtension: nil){
+        referenceUrl = bundleURL;
+        let refNode:SCNReferenceNode? = await SCNReferenceNode(url: referenceUrl);
+        await refNode?.load();
+        node = refNode;
+    }
+    else if(url != nil && !url!.isEmpty) {
+        referenceUrl = URL(fileURLWithPath: url!);
+        let refNode:SCNReferenceNode? = await SCNReferenceNode(url: referenceUrl);
+        await refNode?.load();
+        node = refNode;
+    }
+    return node;
+}
+
+func getUSDZNodeFromURL(urlString: String) async -> SCNNode? {
+    print("ViewController().getUSDZNodeFromURL() called for url:", urlString);
+        
+    let downloadedUrl: URL?;
+    do {
+        print("Getting Downloaded Url");
+        downloadedUrl = try await HttpDownloader().downloadFileAsync(fileURLString: urlString, filePathString: nil);
+        print("Got Downloaded Url:", downloadedUrl as Any);
+    }
+    catch {
+        print("Error in Getting Downloaded Url in ViewController().getUSDZNodeFromURL():", error);
+        return nil;
+    }
+    
+//        let fileName = "Croton_not_a_Snake_Plant.usdz";
+    let fileName = "M1887_Free_Fire.usdz";
+//        let fileName = "ufo.usdz";
+    
+    let filePathUrl = copyFile(sourceFileUrl: downloadedUrl!, filePath: nil, fileName: fileName);
+    
+    if(filePathUrl == nil) {
+        print("Returning from ViewController().getUSDZNodeFromURL() because filePathUrl is nil");
+        return nil;
+    }
+    
+    let finalFileUrl: URL = filePathUrl!;
+    
+    //2. Load The Scene Remembering The Init Takes ONLY A Local URL
+    let modelScene: SCNScene?;
+    do {
+        print("Getting modelScene");
+        modelScene = try SCNScene(url: finalFileUrl, options: nil);
+        print("Got modelScene:", downloadedUrl as Any);
+    }
+    catch {
+        print("Error in Getting modelScene in ViewController().getUSDZNodeFromURL():", error);
+        return nil;
+    }
+    
+    if(modelScene == nil) {
+        print("Returning from ViewController().getUSDZNodeFromURL() because modelScene couldn't got");
+        return nil;
+    }
+    
+    //3. Create A Node To Hold All The Content
+    let modelHolderNode: SCNNode = await SCNNode();
+    
+    //4. Get All The Nodes From The SCNFile
+    let nodeArray = await modelScene!.rootNode.childNodes;
+    
+    //5. Add Them To The Holder Node
+    for childNode in nodeArray {
+        await modelHolderNode.addChildNode(childNode as SCNNode);
+    }
+    
+    await modelHolderNode.setPosition(position: SCNVector3(x: 0, y: -10, z: -25));
+    
+    return modelHolderNode;
+}
+
+extension SCNNode {
+    public func setPosition(position: SCNVector3) {
+        self.position = position;
+    }
+}
+
+func copyFile(sourceFileUrl: URL, filePath: String?, fileName: String?) -> URL? {
+    var finalFilePathString: String? = filePath;
+    
+    if(finalFilePathString == nil && fileName != nil) {
+        let documentsDirectory: URL? = getDocumentsDirectory();
+        print("documentsDirectory:", documentsDirectory as Any);
+        
+        if(documentsDirectory != nil) {
+            finalFilePathString = documentsDirectory!.appendingPathComponent(fileName!).path;
+        }
+    }
+    
+    if(finalFilePathString == nil) {
+        return nil;
+    }
+    
+    let sourceFilePathUrl: URL = sourceFileUrl;
+    let finalFilePathUrl: URL = URL(fileURLWithPath: finalFilePathString!, isDirectory: false);
+    
+    print("sourceFilePathUrl:", sourceFilePathUrl);
+    print("finalFilePathUrl:", finalFilePathUrl);
+    
+    do {
+        try FileManager.default.copyItem(at: sourceFilePathUrl, to: finalFilePathUrl);
+        
+        print("Successfuly Saved File \(finalFilePathUrl)")
+        
+        return finalFilePathUrl;
+    } catch {
+        print("Error Saving: \(error)");
+        
+        return finalFilePathUrl;
+    }
+}
+
+func getDocumentsDirectory() -> URL? {
+    let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask);
+    print("paths.count:", paths.count);
+    
+    if(paths.count == 0) {
+        print("returning from getDocumentsDirectory because paths count is zero");
+        return nil;
+    }
+    
+    let documentsDirectory = paths[0];
+    return documentsDirectory;
+    
 }
 
 fileprivate func createPhysicsBody(_ dict: Dictionary<String, Any>, forDevice device: MTLDevice?) -> SCNPhysicsBody {

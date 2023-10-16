@@ -6,7 +6,8 @@ import 'package:vector_math/vector_math_64.dart';
 ///  Node that references an external serialized node graph.
 class ARKitReferenceNode extends ARKitNode {
   ARKitReferenceNode({
-    required this.url,
+    this.url = "",
+    this.remoteUrl = "",
     ARKitPhysicsBody? physicsBody,
     ARKitLight? light,
     Vector3? position,
@@ -31,8 +32,14 @@ class ARKitReferenceNode extends ARKitNode {
   /// If path from main bundle fails, will search as full file path
   final String url;
 
+  /// URL location of the Node
+  /// Defaults to empty
+  /// It is url of remote object
+  final String remoteUrl;
+
   @override
   Map<String, dynamic> toMap() => <String, dynamic>{
         'url': url,
+        'remoteUrl': remoteUrl,
       }..addAll(super.toMap());
 }
