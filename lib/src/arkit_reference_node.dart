@@ -8,6 +8,7 @@ class ARKitReferenceNode extends ARKitNode {
   ARKitReferenceNode({
     this.url = "",
     this.remoteUrl = "",
+    this.remoteObjectFileName = "",
     ARKitPhysicsBody? physicsBody,
     ARKitLight? light,
     Vector3? position,
@@ -37,9 +38,15 @@ class ARKitReferenceNode extends ARKitNode {
   /// It is url of remote object
   final String remoteUrl;
 
+  /// File Name of the object exist in Remote
+  /// Defaults to empty
+  /// It is file name of remote object
+  final String remoteObjectFileName;
+
   @override
   Map<String, dynamic> toMap() => <String, dynamic>{
         'url': url,
         'remoteUrl': remoteUrl,
+        'remoteObjectFileName': remoteObjectFileName,
       }..addAll(super.toMap());
 }
